@@ -1643,6 +1643,9 @@ TEST_CASE("issue-3171", "[highs_test_mip_solver]") {
   REQUIRE(highs.getModelStatus() == HighsModelStatus::kOptimal);
   REQUIRE(objectiveOk(highs.getInfo().objective_function_value,
                       optimal_objective, dev_run));
+  highs.resetGlobalScheduler(true);
+}
+
 TEST_CASE("issue-3173", "[highs_test_mip_solver]") {
   // HPresolve::checkColBounds() treats a column as fixed when its bounds are
   // equal only within the feasibility tolerance. The condition bounds the
