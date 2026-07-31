@@ -3043,8 +3043,15 @@ bool HighsDomain::ConflictSet::resolveLinearGeq(HighsCDouble M, double Mupper,
             M -= reasonDomchg.delta;
             // ++numDropped;
           } else {
-            while (relaxLb <= localdom.prevboundval_[locdomchg.pos].first)
-              locdomchg.pos = localdom.prevboundval_[locdomchg.pos].second;
+            // walk to the earliest position that still establishes relaxLb;
+            // stop at the chain's first entry: its predecessor position is -1
+            // and the relaxed bound may numerically reach the chain's base
+            // value even though the drop branch above did not trigger
+            while (relaxLb <= localdom.prevboundval_[locdomchg.pos].first) {
+              HighsInt prevPos = localdom.prevboundval_[locdomchg.pos].second;
+              if (prevPos == -1) break;
+              locdomchg.pos = prevPos;
+            }
 
             // bound can be relaxed
             M += vals[i] * (static_cast<HighsCDouble>(relaxLb) - lb);
@@ -3077,9 +3084,13 @@ bool HighsDomain::ConflictSet::resolveLinearGeq(HighsCDouble M, double Mupper,
             M -= reasonDomchg.delta;
             // ++numDropped;
           } else {
-            // bound can be relaxed
-            while (relaxUb >= localdom.prevboundval_[locdomchg.pos].first)
-              locdomchg.pos = localdom.prevboundval_[locdomchg.pos].second;
+            // bound can be relaxed; see the lower-bound branch for why the
+            // walk must stop at the chain's first entry
+            while (relaxUb >= localdom.prevboundval_[locdomchg.pos].first) {
+              HighsInt prevPos = localdom.prevboundval_[locdomchg.pos].second;
+              if (prevPos == -1) break;
+              locdomchg.pos = prevPos;
+            }
 
             M += vals[i] * (static_cast<HighsCDouble>(relaxUb) - ub);
             // ++numRelaxed;
@@ -3162,9 +3173,16 @@ bool HighsDomain::ConflictSet::resolveLinearLeq(HighsCDouble M, double Mlower,
             M -= reasonDomchg.delta;
             // ++numDropped;
           } else {
-            // bound can be relaxed
-            while (relaxLb <= localdom.prevboundval_[locdomchg.pos].first)
-              locdomchg.pos = localdom.prevboundval_[locdomchg.pos].second;
+            // bound can be relaxed; walk to the earliest position that still
+            // establishes relaxLb, stopping at the chain's first entry: its
+            // predecessor position is -1 and the relaxed bound may numerically
+            // reach the chain's base value even though the drop branch above
+            // did not trigger
+            while (relaxLb <= localdom.prevboundval_[locdomchg.pos].first) {
+              HighsInt prevPos = localdom.prevboundval_[locdomchg.pos].second;
+              if (prevPos == -1) break;
+              locdomchg.pos = prevPos;
+            }
 
             M += vals[i] * (static_cast<HighsCDouble>(relaxLb) - lb);
             // ++numRelaxed;
@@ -3196,9 +3214,13 @@ bool HighsDomain::ConflictSet::resolveLinearLeq(HighsCDouble M, double Mlower,
             M -= reasonDomchg.delta;
             // ++numDropped;
           } else {
-            // bound can be relaxed
-            while (relaxUb >= localdom.prevboundval_[locdomchg.pos].first)
-              locdomchg.pos = localdom.prevboundval_[locdomchg.pos].second;
+            // bound can be relaxed; see the lower-bound branch for why the
+            // walk must stop at the chain's first entry
+            while (relaxUb >= localdom.prevboundval_[locdomchg.pos].first) {
+              HighsInt prevPos = localdom.prevboundval_[locdomchg.pos].second;
+              if (prevPos == -1) break;
+              locdomchg.pos = prevPos;
+            }
 
             M += vals[i] * (static_cast<HighsCDouble>(relaxUb) - ub);
             // ++numRelaxed;
@@ -3367,10 +3389,10 @@ bool HighsDomain::ConflictSet::explainInfeasibilityConflict(
 
       while (localdom.prevboundval_[pos].first >= conflict[i].boundval) {
         pos = localdom.prevboundval_[pos].second;
-        // since we checked that the bound value is not active globally and is
-        // active for the local domain at pos
-        // pos should never become -1
-        assert(pos != -1);
+        // the global-activity check above is meant to keep the walk inside
+        // the chain, but that invariant can break numerically; treat the
+        // bound change as unexplainable rather than walking past the start
+        if (pos == -1) return false;
       }
     } else {
       double ub = localdom.getColUpperPos(conflict[i].column,
@@ -3379,10 +3401,8 @@ bool HighsDomain::ConflictSet::explainInfeasibilityConflict(
 
       while (localdom.prevboundval_[pos].first <= conflict[i].boundval) {
         pos = localdom.prevboundval_[pos].second;
-        // since we checked that the bound value is not active globally and is
-        // active for the local domain at pos
-        // pos should never become -1
-        assert(pos != -1);
+        // see the lower-bound branch above
+        if (pos == -1) return false;
       }
     }
 
@@ -3648,10 +3668,10 @@ bool HighsDomain::ConflictSet::explainBoundChangeConflict(
 
       while (localdom.prevboundval_[pos].first >= conflict[i].boundval) {
         pos = localdom.prevboundval_[pos].second;
-        // since we checked that the bound value is not active globally and is
-        // active for the local domain at pos
-        // pos should never become -1
-        assert(pos != -1);
+        // the global-activity check above is meant to keep the walk inside
+        // the chain, but that invariant can break numerically; treat the
+        // bound change as unexplainable rather than walking past the start
+        if (pos == -1) return false;
       }
     } else {
       double ub =
@@ -3661,10 +3681,8 @@ bool HighsDomain::ConflictSet::explainBoundChangeConflict(
 
       while (localdom.prevboundval_[pos].first <= conflict[i].boundval) {
         pos = localdom.prevboundval_[pos].second;
-        // since we checked that the bound value is not active globally and is
-        // active for the local domain at pos
-        // pos should never become -1
-        assert(pos != -1);
+        // see the lower-bound branch above
+        if (pos == -1) return false;
       }
     }
 
