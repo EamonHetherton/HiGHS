@@ -963,6 +963,16 @@ void HEkkDual::solvePhase2() {
     solve_phase = kSolvePhase1;
   } else if (row_out == kNoRowChosen) {
     // There is no candidate in CHUZR, even after rebuild so probably optimal
+    if (ekk_instance_.info_.update_count > 0) {
+      // Optimality would be certified from values computed with an
+      // updated factor, and accumulated update error can make those
+      // values wrong without creating any visible infeasibility.
+      // Force a refactorization and reassess: the phase is
+      // re-entered, rebuild() refactorizes, and either optimality is
+      // confirmed from fresh values or iterations continue.
+      ekk_instance_.force_refactor_on_rebuild_ = true;
+      return;
+    }
     highsLogDev(ekk_instance_.options_->log_options, HighsLogType::kDetailed,
                 "dual-phase-2-optimal\n");
     // Remove any cost perturbations and see if basis is still dual feasible

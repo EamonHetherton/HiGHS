@@ -584,6 +584,16 @@ void HEkkPrimal::solvePhase2() {
                 "primal-return-phase1\n");
   } else if (variable_in == -1) {
     // There is no candidate in CHUZC, even after rebuild so probably optimal
+    if (ekk_instance_.info_.update_count > 0) {
+      // Optimality would be certified from values computed with an
+      // updated factor, and accumulated update error can make those
+      // values wrong without creating any visible infeasibility.
+      // Force a refactorization and reassess: the phase is
+      // re-entered, rebuild() refactorizes, and either optimality is
+      // confirmed from fresh values or iterations continue.
+      ekk_instance_.force_refactor_on_rebuild_ = true;
+      return;
+    }
     highsLogDev(options.log_options, HighsLogType::kDetailed,
                 "primal-phase-2-optimal\n");
     // Remove any bound perturbations and see if basis is still primal feasible
