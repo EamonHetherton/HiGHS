@@ -35,6 +35,7 @@ class HEkk {
         iteration_count_(0),
         dual_simplex_cleanup_level_(0),
         dual_simplex_phase1_cleanup_level_(0),
+        force_refactor_on_rebuild_(false),
         previous_iteration_cycling_detected(-kHighsIInf),
         solve_bailout_(false),
         called_return_from_solve_(false),
@@ -205,6 +206,10 @@ class HEkk {
   HighsInt iteration_count_;
   HighsInt dual_simplex_cleanup_level_;
   HighsInt dual_simplex_phase1_cleanup_level_;
+  // Set when a terminal conclusion (eg optimality) is reached with an
+  // updated factor: the next rebuild must refactorize so the
+  // conclusion is certified from freshly computed values
+  bool force_refactor_on_rebuild_;
 
   HighsInt previous_iteration_cycling_detected;
 

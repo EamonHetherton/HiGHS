@@ -1010,6 +1010,7 @@ HighsStatus HEkk::solve(const bool force_phase2) {
     analysis_.simplexTimerStart(SimplexTotalClock);
   dual_simplex_cleanup_level_ = 0;
   dual_simplex_phase1_cleanup_level_ = 0;
+  force_refactor_on_rebuild_ = false;
 
   previous_iteration_cycling_detected = -kHighsIInf;
 
@@ -1988,7 +1989,18 @@ void HEkk::computeDualObjectiveValue(const HighsInt phase) {
 
 bool HEkk::rebuildRefactor(HighsInt rebuild_reason) {
   // If no updates have been performed, then don't refactor!
-  if (info_.update_count == 0) return false;
+  if (info_.update_count == 0) {
+    force_refactor_on_rebuild_ = false;
+    return false;
+  }
+  // A terminal conclusion (eg optimality) must not be certified from
+  // values computed with an updated factor, since accumulated update
+  // error can make them wrong, so refactorization has been
+  // forced
+  if (force_refactor_on_rebuild_) {
+    force_refactor_on_rebuild_ = false;
+    return true;
+  }
   // Otherwise, refactor by default
   bool refactor = true;
   double solution_error = 0;
