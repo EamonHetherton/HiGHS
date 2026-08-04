@@ -2684,12 +2684,26 @@ void HighsDomain::tightenCoefficients(HighsInt* inds, double* vals,
       if (vals[i] > maxabscoef) {
         HighsCDouble delta = vals[i] - maxabscoef;
         upper -= delta * col_upper_[inds[i]];
-        vals[i] = static_cast<double>(maxabscoef);
+        double newval = static_cast<double>(maxabscoef);
+        HighsCDouble roundErr = newval - maxabscoef;
+        if (roundErr < 0) {
+          newval = std::nextafter(newval, kHighsInf);
+          roundErr = newval - maxabscoef;
+        }
+        upper += roundErr * col_upper_[inds[i]];
+        vals[i] = newval;
         ++tightened;
       } else if (vals[i] < -maxabscoef) {
         HighsCDouble delta = -vals[i] - maxabscoef;
         upper += delta * col_lower_[inds[i]];
-        vals[i] = -static_cast<double>(maxabscoef);
+        double newval = -static_cast<double>(maxabscoef);
+        HighsCDouble roundErr = newval + maxabscoef;
+        if (roundErr > 0) {
+          newval = std::nextafter(newval, -kHighsInf);
+          roundErr = newval + maxabscoef;
+        }
+        upper += roundErr * col_lower_[inds[i]];
+        vals[i] = newval;
         ++tightened;
       }
     }
@@ -2699,6 +2713,7 @@ void HighsDomain::tightenCoefficients(HighsInt* inds, double* vals,
       // %g to %g\n",
       //       tightened, rhs, static_cast<double>(upper));
       rhs = static_cast<double>(upper);
+      if (rhs - upper < 0) rhs = std::nextafter(rhs, kHighsInf);
     }
   }
 }
