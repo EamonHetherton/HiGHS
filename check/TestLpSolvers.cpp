@@ -602,3 +602,16 @@ TEST_CASE("issue-2300", "[highs_lp_solver]") {
 
   h.resetThreadScheduler(true);
 }
+
+TEST_CASE("lp-solve-error-sets-model-status", "[highs_lp_solver]") {
+  // This LP makes the dual simplex ratio test fail, so run() returns
+  // HighsStatus::kError. The model status must classify the failed solve
+  // rather than remain HighsModelStatus::kNotset.
+  const std::string filename =
+      std::string(HIGHS_DIR) + "/check/instances/notset-lp-min.mps";
+  Highs highs;
+  highs.setOptionValue("output_flag", dev_run);
+  REQUIRE(highs.readModel(filename) == HighsStatus::kOk);
+  REQUIRE(highs.run() == HighsStatus::kError);
+  REQUIRE(highs.getModelStatus() == HighsModelStatus::kSolveError);
+}
