@@ -4279,6 +4279,9 @@ HighsStatus Highs::callSolveLp(HighsLp& lp, const std::string& message) {
   return_status = solveLp(solver_object, message);
   // Extract the model status
   model_status_ = solver_object.model_status_;
+  if (return_status == HighsStatus::kError &&
+      model_status_ == HighsModelStatus::kNotset)
+    model_status_ = HighsModelStatus::kSolveError;
 
   return return_status;
 }
