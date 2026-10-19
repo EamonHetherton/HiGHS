@@ -2508,3 +2508,91 @@ TEST_CASE("issue-3173", "[highs_test_mip_solver]") {
   REQUIRE(relative_error < 1e-6);
   highs.resetGlobalScheduler(true);
 }
+
+TEST_CASE("issue-3173-near-fixed-column-keeps-its-cost",
+          "[highs_test_mip_solver]") {
+  // Column x has bounds differing by 3.4e-8, within the feasibility
+  // tolerance, and a cost of -7.3e10, so x is worth 2482 at its upper bound.
+  // Presolve must not treat it as fixed at its lower bound.
+  HighsLp lp;
+  lp.num_col_ = 2;
+  lp.num_row_ = 1;
+  lp.col_cost_ = {-7.3e10, 0};
+  lp.col_lower_ = {0, 0};
+  lp.col_upper_ = {3.4e-8, 1};
+  lp.row_lower_ = {0};
+  lp.row_upper_ = {kHighsInf};
+  lp.a_matrix_.format_ = MatrixFormat::kColwise;
+  lp.a_matrix_.start_ = {0, 1, 2};
+  lp.a_matrix_.index_ = {0, 0};
+  lp.a_matrix_.value_ = {1, 1};
+  lp.integrality_ = {HighsVarType::kContinuous, HighsVarType::kInteger};
+  const double optimal_objective = -7.3e10 * 3.4e-8;
+  Highs highs;
+  highs.setOptionValue("output_flag", dev_run);
+  REQUIRE(highs.passModel(lp) == HighsStatus::kOk);
+  REQUIRE(highs.run() == HighsStatus::kOk);
+  REQUIRE(highs.getModelStatus() == HighsModelStatus::kOptimal);
+  const double relative_error =
+      std::fabs(highs.getInfo().objective_function_value - optimal_objective) /
+      std::fabs(optimal_objective);
+  if (dev_run)
+    printf("issue-3173: objective %g, require %g, relative error %g\n",
+           highs.getInfo().objective_function_value, optimal_objective,
+           relative_error);
+  REQUIRE(relative_error < 1e-6);
+  highs.resetGlobalScheduler(true);
+}
+
+TEST_CASE("tighten-coefficients-keeps-zero-slack-point-feasible",
+          "[highs_test_mip_solver]") {
+  // HighsDomain::tightenCoefficients() replaces a coefficient by
+  // maxactivity - rhs, computed in HighsCDouble. The tightened constraint
+  // holds with zero slack at any point where the original one does, so the
+  // stored double coefficient and rhs must not make it tighter by rounding.
+  //
+  // Here maxactivity - rhs = 2^34 + 0.4, which rounds to nearest 1.5e-6
+  // upwards. The point (1, 1, 1) satisfies the original constraint
+  // (2^34 + 1) x0 - 2^34 x1 - 0.4 x2 <= 0.6 with zero slack, and rounding the
+  // tightened coefficient to nearest cuts it off by more than the feasibility
+  // tolerance.
+  HighsLp lp;
+  lp.num_col_ = 3;
+  lp.col_cost_ = {0, 0, 0};
+  lp.col_lower_ = {0, 0, 0};
+  lp.col_upper_ = {1, 1, 1};
+  lp.integrality_.assign(3, HighsVarType::kInteger);
+
+  Highs highs;
+  highs.setOptionValue("output_flag", dev_run);
+  highs.passModel(lp);
+  HighsCallback callback(&highs);
+  HighsSolution solution;
+  HighsMipSolver mipsolver(callback, highs.getOptions(), lp, solution);
+  mipsolver.mipdata_ =
+      std::unique_ptr<HighsMipSolverData>(new HighsMipSolverData(mipsolver));
+  mipsolver.mipdata_->feastol = 1e-6;
+  HighsDomain domain(mipsolver);
+
+  const double original_rhs = 0.6;
+  const double original_coefficient = 0x1p34 + 1;
+  std::vector<HighsInt> inds = {0, 1, 2};
+  std::vector<double> vals = {original_coefficient, -0x1p34,
+                              -(1 - original_rhs)};
+  const std::vector<double> point = {1, 1, 1};
+
+  auto slack = [&](double rhs) {
+    HighsCDouble activity = 0;
+    for (size_t i = 0; i < inds.size(); ++i) activity += vals[i] * point[i];
+    return static_cast<double>(rhs - activity);
+  };
+  REQUIRE(slack(original_rhs) == 0);
+
+  double rhs = original_rhs;
+  domain.tightenCoefficients(inds.data(), vals.data(), inds.size(), rhs);
+  REQUIRE(vals[0] < original_coefficient);
+  if (dev_run)
+    printf("tightened coefficient %.17g, rhs %.17g, slack %g\n", vals[0], rhs,
+           slack(rhs));
+  REQUIRE(slack(rhs) >= 0);
+}
