@@ -604,16 +604,21 @@ TEST_CASE("issue-2300", "[highs_lp_solver]") {
 }
 
 TEST_CASE("lp-solve-error-sets-model-status", "[highs_lp_solver]") {
-  // This LP makes the dual simplex ratio test fail, so run() returns
-  // HighsStatus::kError. The model status must classify the failed solve
-  // rather than remain HighsModelStatus::kNotset.
+  // With this random seed, dual simplex on the original LP after postsolve
+  // cannot obtain a nonsingular basis even after raising the Markowitz
+  // threshold, so run() returns HighsStatus::kError. The model status must
+  // classify the failed solve rather than remain HighsModelStatus::kNotset.
+  //
+  // The model is infeasible-1937-10.mps from issue #3418.
   const std::string filename =
-      std::string(HIGHS_DIR) + "/check/instances/notset-lp-min.mps";
+      std::string(HIGHS_DIR) + "/check/instances/issue-3418-1937-10.mps";
   Highs highs;
   highs.setOptionValue("output_flag", dev_run);
-  REQUIRE(highs.readModel(filename) == HighsStatus::kOk);
+  highs.setOptionValue("random_seed", 1);
+  REQUIRE(highs.readModel(filename) != HighsStatus::kError);
   REQUIRE(highs.run() == HighsStatus::kError);
   REQUIRE(highs.getModelStatus() == HighsModelStatus::kSolveError);
+  highs.resetGlobalScheduler(true);
 }
 
 TEST_CASE("issue-3194", "[highs_lp_solver]") {
