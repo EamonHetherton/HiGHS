@@ -615,3 +615,32 @@ TEST_CASE("lp-solve-error-sets-model-status", "[highs_lp_solver]") {
   REQUIRE(highs.run() == HighsStatus::kError);
   REQUIRE(highs.getModelStatus() == HighsModelStatus::kSolveError);
 }
+
+TEST_CASE("issue-3194", "[highs_lp_solver]") {
+  // Warm started from this basis, dual simplex reaches an optimal basis but
+  // certifies optimality from primal values computed with a factor carrying
+  // 266 updates. A degenerate basic value picks up 1.17e-5 of update error,
+  // worth 91.81 through its cost, so the returned objective is 818203761.82
+  // with zero measured infeasibilities. The optimal objective is that of the
+  // same final basis refactorized, and of a cold solve.
+  const std::string model =
+      std::string(HIGHS_DIR) + "/check/instances/issue-3194.mps";
+  const std::string basis =
+      std::string(HIGHS_DIR) + "/check/instances/issue-3194.bas";
+  const double optimal_objective = 818203670.00500774;
+  Highs highs;
+  highs.setOptionValue("output_flag", dev_run);
+  REQUIRE(highs.readModel(model) != HighsStatus::kError);
+  REQUIRE(highs.readBasis(basis) == HighsStatus::kOk);
+  REQUIRE(highs.run() == HighsStatus::kOk);
+  REQUIRE(highs.getModelStatus() == HighsModelStatus::kOptimal);
+  const double relative_error =
+      std::fabs(highs.getInfo().objective_function_value - optimal_objective) /
+      optimal_objective;
+  if (dev_run)
+    printf("issue-3194: objective %.17g, require %.17g, relative error %g\n",
+           highs.getInfo().objective_function_value, optimal_objective,
+           relative_error);
+  REQUIRE(relative_error < 1e-9);
+  highs.resetGlobalScheduler(true);
+}
