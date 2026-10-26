@@ -2703,3 +2703,56 @@ TEST_CASE("tighten-coefficients-keeps-zero-slack-point-feasible",
            slack(rhs));
   REQUIRE(slack(rhs) >= 0);
 }
+
+TEST_CASE("issue-3433-seeds", "[highs_test_mip_solver]") {
+  // Complements issue-3433 with further random seeds that led conflict
+  // analysis to an invalid conflict, reporting Optimal at 24 or 28: 249,
+  // 432 and 543 failed on upstream latest 8fd6a9a4a2, and 217, 249, 476,
+  // 616, 779 and 793 with this branch's other fixes applied.
+  const std::string filename =
+      std::string(HIGHS_DIR) + "/check/instances/issue-3433.mps";
+  const double optimal_objective = 19;
+  for (const HighsInt seed : {217, 249, 432, 476, 543, 616, 779, 793}) {
+    Highs highs;
+    highs.setOptionValue("output_flag", dev_run);
+    highs.setOptionValue("threads", 1);
+    highs.setOptionValue("mip_rel_gap", 0.0);
+    highs.setOptionValue("random_seed", seed);
+    REQUIRE(highs.readModel(filename) == HighsStatus::kOk);
+    REQUIRE(highs.run() == HighsStatus::kOk);
+    REQUIRE(highs.getModelStatus() == HighsModelStatus::kOptimal);
+    if (dev_run)
+      printf("issue-3433: seed %d objective %g\n", int(seed),
+             highs.getInfo().objective_function_value);
+    REQUIRE(std::fabs(highs.getInfo().objective_function_value -
+                      optimal_objective) < 1e-6);
+    highs.resetGlobalScheduler(true);
+  }
+}
+
+TEST_CASE("neos4-optimal", "[highs_test_mip_solver]") {
+  // MIPLIB 2017 neos4. Upstream latest 8fd6a9a4a2 reports Optimal at
+  // -48454383704.4 for random seeds 0-5, cut off from MIPLIB's solution
+  // at -48603440750.6, which HiGHS accepts as feasible.
+  const std::string filename =
+      std::string(HIGHS_DIR) + "/check/instances/neos4.mps";
+  const double optimal_objective = -48603440750.6;
+  for (const HighsInt seed : {0, 1, 2, 3, 4, 5}) {
+    Highs highs;
+    highs.setOptionValue("output_flag", dev_run);
+    highs.setOptionValue("threads", 1);
+    highs.setOptionValue("random_seed", seed);
+    REQUIRE(highs.readModel(filename) != HighsStatus::kError);
+    REQUIRE(highs.run() == HighsStatus::kOk);
+    REQUIRE(highs.getModelStatus() == HighsModelStatus::kOptimal);
+    const double relative_error =
+        std::fabs(highs.getInfo().objective_function_value -
+                  optimal_objective) /
+        std::fabs(optimal_objective);
+    if (dev_run)
+      printf("neos4: seed %d objective %.12g relative error %g\n", int(seed),
+             highs.getInfo().objective_function_value, relative_error);
+    REQUIRE(relative_error < 1e-6);
+    highs.resetGlobalScheduler(true);
+  }
+}
